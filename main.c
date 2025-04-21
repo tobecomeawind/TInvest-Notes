@@ -21,17 +21,29 @@ do { \
 
 
 struct response_data {
+	//----------------------
+	// Data from http request
+	// creates in writefunction
+	//----------------------
+	
 	char*  data;
 	size_t size;
 };
 
 struct sum_data {
+	//---------------------------------------------
+	// represent a TInvest MoneyValue and Quotation
+	//---------------------------------------------
 	double units;	
 	double nano;	
 };
 
 static char* get_token(const char* filename)
 {
+	//--------------------------------
+	// Getting TInvest Token From File
+	//--------------------------------
+	
 	FILE* fp;
 	char* token;
 
@@ -47,6 +59,10 @@ static char* get_token(const char* filename)
 
 static char* get_key_value_token (const char* filename)
 {
+	//-----------------------------------------------------
+	// Convert "Token" to "Authorization: Bearer <<Token>>"
+	//-----------------------------------------------------
+	
 	char* token = get_token(filename);
 	char* key  = malloc(strlen("Authorization: Bearer ") +  TOKEN_MAX_SIZE);
 	strcpy(key, "Authorization: Bearer ");	
@@ -61,6 +77,12 @@ static size_t write_function(char*  data,
                              size_t nmemb,
                              void*  clientp)
 {
+	//--------------------------------------------
+	// write_function overriding
+	// need to save, perform, documentate and ...
+	// data from httt_request
+	//--------------------------------------------
+	
 	size_t realsize = size * nmemb;
 	struct response_data* r_data = (struct response_data*) clientp;
 	
@@ -91,6 +113,7 @@ static struct response_data* http_request(const char*        url,
 	curl = curl_easy_init();
 
 	curl_easy_setopt(curl, CURLOPT_URL, url);
+	//overrride writefunction
 	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_function);
 	curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void*)result);
 
@@ -110,7 +133,11 @@ static struct response_data* http_request(const char*        url,
 
 static char* get_shareName_by_figi(char* figiName)
 {
-		
+	//---------------------------------------------
+	// FIGI(Financial Instrument Global Identifier)
+	// return name of share use figi code
+	//---------------------------------------------
+	
 	struct response_data* json_data;
 	struct curl_slist*    header_list = NULL;
 	cJSON* json;	
@@ -120,7 +147,8 @@ static char* get_shareName_by_figi(char* figiName)
 
 	LOAD_BASE_HEADERS(header_list);	
 	
-	snprintf(body, 256, "{\"%s\": \"%i\",\"%s\": \"%s\"}", "idType", 1, "id", figiName);
+	snprintf(body, 256, "{\"%s\": \"%i\",\"%s\": \"%s\"}",
+			              "idType", 1,    "id", figiName);
 
 	json_data = http_request(CREATE_URL(InstrumentsService/ShareBy),
                              header_list,
@@ -147,6 +175,10 @@ static char* get_shareName_by_figi(char* figiName)
 
 static char* get_account_id(void)
 {
+	//-----------------------------
+	// Get account id by user token
+	//-----------------------------
+
 	struct response_data* rdata;
 	struct curl_slist*    headers;
 	cJSON*                json;
@@ -179,6 +211,10 @@ static char* get_account_id(void)
 
 static struct sum_data* get_quotation(cJSON* json)
 {
+	//------------------------------------------
+	// Get quotation data type, read TInvest doc
+	//------------------------------------------
+	
 	cJSON*      tmp_json;
 	struct sum_data* sptr = malloc(sizeof(struct sum_data));
 	
@@ -193,6 +229,10 @@ static struct sum_data* get_quotation(cJSON* json)
 
 static double get_money_value(cJSON* json)
 {
+	//--------------------------------------------
+	// Get money value data type, read TInvest doc
+	//--------------------------------------------
+	
 	struct sum_data* sptr = get_quotation(json);
 	
 	double money = sptr->units;
@@ -206,8 +246,12 @@ static double get_money_value(cJSON* json)
 }
 
 
-static char* get_daily_results(cJSON* json)
+static char* get_percent_results(cJSON* json)
 {
+	//--------------------------------------------
+	// Get text about down or up shares by percent
+	//--------------------------------------------
+	
 	double money;
 	char*  result_text = malloc(64);  
 
@@ -215,30 +259,42 @@ static char* get_daily_results(cJSON* json)
 		return NULL;
 
 	if ((money = get_money_value(json)) < 0)
-		snprintf(result_text, 64, "падение на <font color=FF0000>%.2f%</font>", money);	
+		snprintf(result_text, 64,
+                "падение на <font color=FF0000>%.2f%</font>",
+                 money);	
 	else if (money > 0)	
-		snprintf(result_text, 64, "рост на <font color=008000>%.2f%</font>", money);	
+		snprintf(result_text, 64,
+                 "рост на <font color=008000>%.2f%</font>",
+                  money);	
 	else
-		snprintf(result_text, 64, "изменений нет", money);
+		snprintf(result_text, 64,
+                 "изменений нет",
+                 money);
 	
 	return result_text;	
 }
 
 static void write_data_of_shares(char* accountId, char* filename)
 {
+	//-----------------------------------------
+	// Write Data of Shares in filename.md file
+	//-----------------------------------------
+	
 	struct curl_slist*    headers = NULL;
 	struct response_data* rdata;	
-	char*                 body = malloc(256);
-	cJSON*                json;
-	cJSON*                position;
-	cJSON*                sum_shares_json;
-	cJSON*                percent_json;
-	FILE*                 fp;
-	char*                 daily_results;
-	double                daily_amount = 0;
-	double                total_up     = 0;
-	double                total_down   = 1;
 
+	cJSON   *json, *position, *sum_shares_json, *percent_json, *instrumentType;
+	cJSON   *figi, *price,    *quantity,        *daily_res, *year_expectations;
+
+	FILE*   fp;
+
+	double  daily_amount = 0, total_up = 0, total_down = 0;;
+	
+	char*   daily_results;
+	char*   body = malloc(256);
+	
+	if (!body)
+		return;
 
 	snprintf(body,
              256,
@@ -255,24 +311,38 @@ static void write_data_of_shares(char* accountId, char* filename)
 
 	json = cJSON_Parse(rdata->data);
 	
-	sum_shares_json = cJSON_GetObjectItemCaseSensitive(json, "totalAmountShares");
-	percent_json = cJSON_GetObjectItemCaseSensitive(json, "expectedYield");
+	sum_shares_json =cJSON_GetObjectItemCaseSensitive(json,"totalAmountShares");
+	percent_json    =cJSON_GetObjectItemCaseSensitive(json, "expectedYield");
 	
 	json = cJSON_GetObjectItemCaseSensitive(json, "positions");
 
 	fp = fopen(filename, "w");
+	
+	if (!fp)
+		return;
 
-	fprintf(fp, "## Сумма портфеля: %.2f₽\n", get_money_value(sum_shares_json));
-	fprintf(fp, "## Процент роста портфеля: %.2f\%\n", get_money_value(percent_json));
 
+	fprintf(fp, "## Сумма портфеля: %.2f₽\n",
+           get_money_value(sum_shares_json));
+	fprintf(fp, "## Процент роста портфеля: %.2f\%\n",
+                       get_money_value(percent_json));
+
+	
 	cJSON_ArrayForEach(position, json) {
-		cJSON* instrumentType = cJSON_GetObjectItemCaseSensitive(position, "instrumentType");		
+		instrumentType = cJSON_GetObjectItemCaseSensitive(position,
+                                                           "instrumentType");		
 		if (strcmp(instrumentType->valuestring, "share") == 0) {
-			cJSON* figi = cJSON_GetObjectItemCaseSensitive(position, "figi"); 			
-			cJSON* price = cJSON_GetObjectItemCaseSensitive(position, "currentPrice");	
-			cJSON* quantity = cJSON_GetObjectItemCaseSensitive(position, "quantity");
-			cJSON* daily_res = cJSON_GetObjectItemCaseSensitive(position, "dailyYield");
-			cJSON* year_expectations  = cJSON_GetObjectItemCaseSensitive(position, "expectedYieldFifo");
+
+			figi               = cJSON_GetObjectItemCaseSensitive(position,
+                                                                      "figi"); 			
+			price              = cJSON_GetObjectItemCaseSensitive(position,
+                                                              "currentPrice");
+			quantity           = cJSON_GetObjectItemCaseSensitive(position,
+                                                                  "quantity");
+			daily_res          = cJSON_GetObjectItemCaseSensitive(position,
+                                                                "dailyYield");
+			year_expectations  = cJSON_GetObjectItemCaseSensitive(position,
+                                                         "expectedYieldFifo");
 				
 
 			daily_amount = get_money_value(daily_res);
@@ -283,26 +353,39 @@ static void write_data_of_shares(char* accountId, char* filename)
 				total_down += daily_amount *= -1;
 
 			fprintf(fp,
-                    "# %s %.2f₽ (%.0f)(%.2f)\n> Дневной результат - %s\n> Годовое ожидание - %s\n",
+                    "# %s %.2f₽ (%.0f)(%.2f)\n"
+					"> Дневной результат - %s\n" 
+                    "> Годовое ожидание - %s\n",
                     get_shareName_by_figi(figi->valuestring),
                     get_money_value(price),
                     get_quotation(quantity)->units,
                     get_money_value(price) * get_quotation(quantity)->units,
-                    get_daily_results(daily_res),
-                    get_daily_results(year_expectations));	
-				
+                    get_percent_results(daily_res),
+                    get_percent_results(year_expectations));		
 		}
 		
 	}
-	fprintf(fp, "## Прирост за день: <font color=008000>%.2f₽</font>\n",   total_up);
-	fprintf(fp, "## Падение за день: <font color=FF0000>%.2f₽</font>\n", total_down);
+
+	fprintf(fp, "## Прирост за день: <font color=008000>%.2f₽</font>\n",
+			                                           total_up);
+	fprintf(fp, "## Падение за день: <font color=FF0000>%.2f₽</font>\n",
+                                                      total_down);
 
 	fclose(fp);	
 }
 
-int main()
+int main(int argc, char* argv[])
 {
 	char* accountId;
-	accountId = get_account_id();	
-	write_data_of_shares(accountId, "test.txt");	
+	char* filename;	
+	accountId = get_account_id();
+	
+	if (argc > 1) {
+		filename = argv[1];
+	} else {
+		printf("Invalid filename\n");
+		return -1;	
+	}
+
+	write_data_of_shares(accountId, filename);	
 }
