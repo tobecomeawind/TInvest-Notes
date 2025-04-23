@@ -260,11 +260,11 @@ static char* get_percent_results(cJSON* json)
 
 	if ((money = get_money_value(json)) < 0)
 		snprintf(result_text, 64,
-                "падение на <font color=FF0000>%.2f%</font>",
+                "падение на <font color=FF0000>%.2f₽</font>",
                  money);	
 	else if (money > 0)	
 		snprintf(result_text, 64,
-                 "рост на <font color=008000>%.2f%</font>",
+                 "рост на <font color=008000>%.2f₽</font>",
                   money);	
 	else
 		snprintf(result_text, 64,
