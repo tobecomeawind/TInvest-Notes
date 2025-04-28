@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <cjson/cJSON.h>
+#include <dirent.h>
+#include <time.h>
 
 #define TOKEN_MAX_SIZE 128
 
@@ -274,7 +276,7 @@ static char* get_percent_results(cJSON* json)
 	return result_text;	
 }
 
-static void write_data_of_shares(char* accountId, char* filename)
+static void write_data_of_shares(char* accountId, const char* filename)
 {
 	//-----------------------------------------
 	// Write Data of Shares in filename.md file
@@ -316,11 +318,13 @@ static void write_data_of_shares(char* accountId, char* filename)
 	
 	json = cJSON_GetObjectItemCaseSensitive(json, "positions");
 
+	printf("Filename: %s\n", filename);
 	fp = fopen(filename, "w");
 	
-	if (!fp)
+	if ( !fp ) {
+		printf("Can`t open file!\n");
 		return;
-
+	}
 
 	fprintf(fp, "## Сумма портфеля: %.2f₽\n",
            get_money_value(sum_shares_json));
@@ -372,20 +376,78 @@ static void write_data_of_shares(char* accountId, char* filename)
                                                       total_down);
 
 	fclose(fp);	
+	printf("Success write a note!\n");
+}
+
+static void set_path(const char* path)
+{
+	FILE* fp;
+	DIR*  dp;
+
+	if ( !(dp = opendir(path)) ) {
+		printf("Invalid DIR path");
+		return;	
+	}	
+	closedir(dp);
+		
+	fp = fopen("path.txt", "w");
+
+	if ( !fp ) return;	
+
+	fprintf(fp, "%s", path);
+
+	fclose(fp);
+	printf("Success change path!\n");
+
+	return;
+}
+
+static char* get_path(void)
+{
+	FILE* fp;
+	DIR*  dp;
+	char* path = malloc(256);
+
+	fp = fopen("path.txt", "r");
+	if ( !fp ) return NULL;
+	
+	fread(path, 1, 256, fp);
+	
+	if ( !(dp = opendir(path)) ) {
+		printf("Can`t open DIR\n");
+		return NULL;	
+	}
+	
+	fclose(fp);
+	closedir(dp);
+	
+
+	return path;	
+}
+
+
+static const char* generate_filename(void)
+{
+	time_t t               = time(NULL);
+	struct tm* currentTime = localtime(&t);
+	char* filename   = malloc(256 + 20);
+	snprintf(filename, 256 + 20, "%sПортфель Акций %02d.%02d.md",
+                               get_path(),
+                               currentTime->tm_mday, currentTime->tm_mon + 1);	
+	return filename;
 }
 
 int main(int argc, char* argv[])
 {
 	char* accountId;
-	char* filename;	
+	const char* filename;	
 	accountId = get_account_id();
 	
 	if (argc > 1) {
-		filename = argv[1];
-	} else {
-		printf("Invalid filename\n");
-		return -1;	
+		set_path(argv[1]);
+		return 0;
 	}
-
-	write_data_of_shares(accountId, filename);	
+	
+	write_data_of_shares(accountId, filename = generate_filename());	
+	printf("Path %s\n", filename);
 }
