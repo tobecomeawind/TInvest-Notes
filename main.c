@@ -106,8 +106,8 @@ static struct response_data* http_request(const char*        url,
 	// Simple http_request
 	//--------------------
 
-	CURL*                 curl;
 	CURLcode              res;
+	CURL*                 curl;
 	struct response_data* result = malloc(sizeof(struct response_data));
 
 	if (!url) return NULL;
@@ -123,9 +123,9 @@ static struct response_data* http_request(const char*        url,
 		curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);		
 
 	if (body)
-		curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body);	
-		
-	res = curl_easy_perform(curl);	
+		curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body);		
+	
+	res = curl_easy_perform(curl);
 		
 	curl_easy_cleanup(curl);
 	
@@ -182,10 +182,10 @@ static char* get_account_id(void)
 	//-----------------------------
 
 	struct response_data* rdata;
-	struct curl_slist*    headers;
+	struct curl_slist*    headers = NULL;
 	cJSON*                json;
 	cJSON*                account_json;
-	char*                 id;
+	char*                 id = NULL;
 
 	LOAD_BASE_HEADERS(headers);
 
@@ -197,6 +197,7 @@ static char* get_account_id(void)
 	json = cJSON_GetObjectItemCaseSensitive(json, "accounts");
 
 	cJSON_ArrayForEach(account_json, json) {
+		if ( id ) break;
 		cJSON* tmp_json = cJSON_GetObjectItemCaseSensitive(account_json, "id");	
 		if (cJSON_IsString(tmp_json) && (tmp_json->valuestring != NULL)) 
 			id = strdup(tmp_json->valuestring);	
@@ -270,8 +271,7 @@ static char* get_percent_results(cJSON* json)
                   money);	
 	else
 		snprintf(result_text, 64,
-                 "изменений нет",
-                 money);
+                 "no changes");
 	
 	return result_text;	
 }
@@ -292,7 +292,6 @@ static void write_data_of_shares(char* accountId, const char* filename)
 
 	double  daily_amount = 0, total_up = 0, total_down = 0;;
 	
-	char*   daily_results;
 	char*   body = malloc(256);
 	
 	if (!body)
@@ -328,7 +327,7 @@ static void write_data_of_shares(char* accountId, const char* filename)
 
 	fprintf(fp, "## Сумма портфеля: %.2f₽\n",
            get_money_value(sum_shares_json));
-	fprintf(fp, "## Процент роста портфеля: %.2f\%\n",
+	fprintf(fp, "## Процент роста портфеля: %.2f%\n",
                        get_money_value(percent_json));
 
 	
@@ -359,7 +358,7 @@ static void write_data_of_shares(char* accountId, const char* filename)
 			fprintf(fp,
                     "# %s %.2f₽ (%.0f)(%.2f)\n"
 					"> Дневной результат - %s\n" 
-                    "> Годовое ожидание - %s\n",
+                    "> Результат за время нахождения в портфеле(сумма дневных результатов) - %s\n",
                     get_shareName_by_figi(figi->valuestring),
                     get_money_value(price),
                     get_quotation(quantity)->units,
@@ -441,12 +440,13 @@ int main(int argc, char* argv[])
 {
 	char* accountId;
 	const char* filename;	
-	accountId = get_account_id();
 	
 	if (argc > 1) {
 		set_path(argv[1]);
 		return 0;
 	}
+	
+	accountId = get_account_id();
 	
 	write_data_of_shares(accountId, filename = generate_filename());	
 	printf("Path %s\n", filename);
